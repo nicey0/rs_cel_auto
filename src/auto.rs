@@ -1,30 +1,31 @@
 #[derive(Debug)]
-pub struct Auto<CellType: Clone + PartialEq> {
-    dead: CellType,
-    grid: Vec<CellType>,
+pub struct Auto<CellType: Copy + PartialEq> {
     width: usize,
+    grid: Vec<Vec<CellType>>,
     rules: Option<fn(CellType, Vec<CellType>) -> CellType>,
 }
 
-fn twod_to_oned<CellType: Clone + PartialEq>(twod: Vec<Vec<CellType>>) -> Vec<CellType> {
-    let mut oned: Vec<CellType> = Vec::new();
-    twod.iter().for_each(|row| row.iter().for_each(|e| oned.push(e.clone())));
-    oned
-}
-
-impl<CellType: Clone + PartialEq> Auto<CellType> {
-    pub fn new(dead: CellType, grid_2d: Vec<Vec<CellType>>,
-               rules: Option<fn(CellType, Vec<CellType>) -> CellType>) -> Self {
-        Auto {
-            dead,
-            width: grid_2d[0].len(),
-            grid: twod_to_oned::<CellType>(grid_2d),
-            rules,
+impl<CellType: Copy + PartialEq> Auto<CellType> {
+    pub fn new(grid: Vec<Vec<CellType>>, rules: Option<fn(CellType, Vec<CellType>) -> CellType>) -> Result<Self,
+    &'static str> {
+        if Self::validate_grid(&grid) {
+            return Ok(Auto {
+                width: grid[0].len(),
+                grid,
+                rules,
+            })
         }
+        Err("Invalid grid")
     }
 
-    fn coor(&self, coor: (i32, i32)) -> CellType {
-        self.grid[(coor.0 as usize) + (coor.1 as usize)*self.width].clone()
+    fn validate_grid(grid: &Vec<Vec<CellType>>) -> bool {
+        let width = grid[0].len();
+        for row in grid.iter() {
+            if row.len() != width {
+                return false
+            }
+        }
+        true
     }
 
     fn get_neighbours(&self, coor: (usize, usize)) -> Vec<CellType> {
@@ -35,11 +36,13 @@ impl<CellType: Clone + PartialEq> Auto<CellType> {
              (x-1, y),             (x+1, y),
              (x-1, y+1), (x, y+1), (x+1, y+1),
         ];
+        // filter out any invalid coordinates
         valid_coors.retain(|c| c.0 >= 0 && c.0 <= maxx && c.1 >= 0 && c.1 <= maxy);
-        valid_coors.iter().map(|&e| self.coor((e.0, e.1))).collect()
+        // collect type for each remaining valid coordinate into Vec<CellType> and return it
+        valid_coors.iter().map(|&e| self.grid[e.0 as usize][e.1 as usize]).collect()
     }
 
-    pub fn get_grid(&self) -> &Vec<CellType> {
+    pub fn get_grid(&self) -> &Vec<Vec<CellType>> {
         &self.grid
     }
 
@@ -50,12 +53,12 @@ impl<CellType: Clone + PartialEq> Auto<CellType> {
     pub fn step(&mut self) -> Result<(), &'static str> {
         if let Some(rules) = self.rules {
             // take step
-            self.grid = self.grid.iter().enumerate()
-                .map(|(i, cell)| {
-                    rules(cell.clone(), self.get_neighbours(
-                            (i % self.width, i / self.width)))
-                })
-                .collect();
+            self.grid = self.grid.iter().enumerate().map(|(y, row)|
+                row.iter().enumerate().map(|(x, &cell)|
+                    // apply rules for each cell
+                    rules(cell, self.get_neighbours((x, y))))
+                .collect())
+            .collect();
             return Ok(())
         } else {
             return Err("No rules");
@@ -66,5 +69,14 @@ impl<CellType: Clone + PartialEq> Auto<CellType> {
         if let Err(e) = self.step() {
             panic!(e);
         }
+    }
+}
+
+impl<CellType: Copy + PartialEq + std::fmt::Display> Auto<CellType> {
+    pub fn print(&self) {
+        self.grid.iter().for_each(|row| {
+            row.iter().for_each(|cell| print!("{} ", cell));
+            println!("");
+        });
     }
 }
