@@ -1,6 +1,5 @@
 #[derive(Debug)]
 pub struct Auto<CellType: Copy + PartialEq> {
-    width: usize,
     grid: Vec<Vec<CellType>>,
     rules: Option<fn(CellType, Vec<CellType>) -> CellType>,
 }
@@ -10,7 +9,6 @@ impl<CellType: Copy + PartialEq> Auto<CellType> {
     &'static str> {
         if Self::validate_grid(&grid) {
             return Ok(Auto {
-                width: grid[0].len(),
                 grid,
                 rules,
             })
@@ -28,9 +26,11 @@ impl<CellType: Copy + PartialEq> Auto<CellType> {
         true
     }
 
-    fn get_neighbours(&self, coor: (usize, usize)) -> Vec<CellType> {
+    pub fn get_neighbours(&self, coor: (usize, usize)) -> Vec<CellType> {
         let (x, y) = (coor.0 as i32, coor.1 as i32);
-        let (maxx, maxy) = ((self.width-1) as i32, (self.grid.len()/self.width-1) as i32);
+        let width = self.grid[0].len();
+        let (maxx, maxy) = (self.grid.len() as i32 - 1, (width-1) as i32);
+        println!("({}, {})", maxx, maxy);
         let mut valid_coors: Vec<(i32, i32)> = vec![
              (x-1, y-1), (x, y-1), (x+1, y-1),
              (x-1, y),             (x+1, y),
@@ -38,6 +38,7 @@ impl<CellType: Copy + PartialEq> Auto<CellType> {
         ];
         // filter out any invalid coordinates
         valid_coors.retain(|c| c.0 >= 0 && c.0 <= maxx && c.1 >= 0 && c.1 <= maxy);
+        println!("{:?}", valid_coors);
         // collect type for each remaining valid coordinate into Vec<CellType> and return it
         valid_coors.iter().map(|&e| self.grid[e.0 as usize][e.1 as usize]).collect()
     }
@@ -53,10 +54,11 @@ impl<CellType: Copy + PartialEq> Auto<CellType> {
     pub fn step(&mut self) -> Result<(), &'static str> {
         if let Some(rules) = self.rules {
             // take step
-            self.grid = self.grid.iter().enumerate().map(|(y, row)|
-                row.iter().enumerate().map(|(x, &cell)|
+            self.grid = self.grid.iter().enumerate().map(|(x, row)|
+                row.iter().enumerate().map(|(y, &cell)| {
                     // apply rules for each cell
-                    rules(cell, self.get_neighbours((x, y))))
+                    rules(cell, self.get_neighbours((x, y)))
+                })
                 .collect())
             .collect();
             return Ok(())
