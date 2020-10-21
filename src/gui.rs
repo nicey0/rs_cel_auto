@@ -22,41 +22,43 @@ pub trait Colored {
 
 impl<CellType: Copy + PartialEq + Colored> Auto<CellType> {
     fn render(&self, gl: &mut GlGraphics, args: &RenderArgs) {
+        let xl = self.get_grid()[0].len();
+        let yl = self.get_grid().len();
+        let w = SIZE[0] / xl as f64;
+        let h = SIZE[1] / yl as f64;
         gl.draw(args.viewport(), |c, g| {
             clear(TRANS, g);
-            let xl = self.get_grid()[0].len();
-            let yl = self.get_grid().len();
             for y in 0..yl {
                 for x in 0..xl {
-                    // SIZE[0] / self.n as f64 * self.x as f64
-                    // SIZE[1] / self.n as f64 * self.y as f64);
-                    let dim = [
-                        SIZE[0] / xl as f64 * x as f64,
-                        SIZE[1] / yl as f64 * y as f64,
-                        SIZE[0] / xl as f64,
-                        SIZE[1] / yl as f64];
-                    rectangle(self.get_grid()[y][x].get_color(), dim, c.transform, g);
+                    rectangle(
+                        self.get_grid()[y][x].get_color(),
+                        [
+                            SIZE[0] / xl as f64 * x as f64,
+                            SIZE[1] / yl as f64 * y as f64,
+                            w,
+                            h
+                        ], c.transform, g);
                 }
             }
         })
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self, title: &'static str, fps: u64) {
         let opengl = OpenGL::V3_2;
-        let mut window: Window = WindowSettings::new("3x3 Squares", SIZE)
+        let mut window: Window = WindowSettings::new(title, SIZE)
             .graphics_api(opengl)
             .exit_on_esc(true)
             .resizable(false)
             .decorated(true)
             .build().unwrap();
         let mut gl = GlGraphics::new(opengl);
-        let mut events = Events::new(EventSettings::new().ups(3));
+        let mut events = Events::new(EventSettings::new().ups(fps));
         while let Some(e) = events.next(&mut window) {
             if let Some(args) = e.render_args() { // render event
                 self.render(&mut gl, &args);
             }
             if let Some(_) = e.update_args() { // update event
-                self.step_panic();
+                self.step();
             }
         }
     }

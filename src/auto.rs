@@ -1,19 +1,24 @@
-#[derive(Debug)]
-pub struct Auto<CellType: Copy + PartialEq> {
-    grid: Vec<Vec<CellType>>,
-    rules: Option<fn(CellType, Vec<CellType>) -> CellType>,
+const NGH: [(i32, i32); 8] = [
+    (-1, -1), (0, -1), (1, -1),
+    (-1,  0),          (1,  0),
+    (-1,  1), (0,  1), (1,  1),
+];
+
+pub struct Auto<CellType: Clone + PartialEq> {
+    grid: Box<Vec<Vec<CellType>>>,
+    rules: fn(&CellType, &Vec<CellType>) -> CellType,
 }
 
-impl<CellType: Copy + PartialEq> Auto<CellType> {
-    pub fn new(grid: Vec<Vec<CellType>>, rules: Option<fn(CellType, Vec<CellType>) -> CellType>) -> Result<Self,
-    &'static str> {
+impl<CellType: Clone + PartialEq> Auto<CellType> {
+    pub fn new(grid: Vec<Vec<CellType>>, rules: fn(&CellType, &Vec<CellType>) -> CellType) -> Self {
         if Self::validate_grid(&grid) {
-            return Ok(Auto {
-                grid,
+            return Auto {
+                grid: Box::new(grid),
                 rules,
-            })
+            }
+        } else {
+            panic!("Invalid grid!");
         }
-        Err("Invalid grid")
     }
 
     fn validate_grid(grid: &Vec<Vec<CellType>>) -> bool {
@@ -26,51 +31,34 @@ impl<CellType: Copy + PartialEq> Auto<CellType> {
         true
     }
 
-    pub fn get_neighbours(&self, coor: (usize, usize)) -> Vec<CellType> {
-        let (x, y) = (coor.0 as i32, coor.1 as i32);
-        let width = self.grid[0].len();
-        let (maxx, maxy) = (self.grid.len() as i32 - 1, (width-1) as i32);
-        println!("({}, {})", maxx, maxy);
-        let mut valid_coors: Vec<(i32, i32)> = vec![
-             (x-1, y-1), (x, y-1), (x+1, y-1),
-             (x-1, y),             (x+1, y),
-             (x-1, y+1), (x, y+1), (x+1, y+1),
-        ];
-        // filter out any invalid coordinates
-        valid_coors.retain(|c| c.0 >= 0 && c.0 <= maxx && c.1 >= 0 && c.1 <= maxy);
-        println!("{:?}", valid_coors);
-        // collect type for each remaining valid coordinate into Vec<CellType> and return it
-        valid_coors.iter().map(|&e| self.grid[e.0 as usize][e.1 as usize]).collect()
-    }
-
     pub fn get_grid(&self) -> &Vec<Vec<CellType>> {
         &self.grid
     }
 
-    pub fn set_rules(&mut self, rules: fn(CellType, Vec<CellType>) -> CellType) {
-        self.rules = Some(rules);
+    pub fn get_neighbours(grid: &Vec<Vec<CellType>>, coor: (usize, usize)) -> Vec<CellType> {
+        NGH.iter()
+            .filter_map(|c| {
+                let x = usize::overflowing_add(coor.0,c.0 as usize).0;
+                let y = usize::overflowing_add(coor.1,c.1 as usize).0;
+                return if x <= (grid.len() as i32-1) as usize && y <= (grid[0].len()-1) as usize {
+                    Some(grid[x][y].clone())
+                } else {
+                    None
+                }
+            }).collect()
     }
 
-    pub fn step(&mut self) -> Result<(), &'static str> {
-        if let Some(rules) = self.rules {
-            // take step
-            self.grid = self.grid.iter().enumerate().map(|(x, row)|
-                row.iter().enumerate().map(|(y, &cell)| {
-                    // apply rules for each cell
-                    rules(cell, self.get_neighbours((x, y)))
-                })
-                .collect())
-            .collect();
-            return Ok(())
-        } else {
-            return Err("No rules");
+    pub fn step(&mut self) {
+        let rules = self.rules;
+        let mut new: Box<Vec<Vec<CellType>>> = Box::new(Vec::with_capacity(self.grid.len()));
+        // take step
+        for y in 0..self.grid.len() {
+            new.push(Vec::with_capacity(self.grid[0].len()));
+            for x in 0..self.grid[0].len() {
+                new[y].push(rules(&self.grid[y][x], &Self::get_neighbours(&self.grid, (y, x))));
+            }
         }
-    }
-
-    pub fn step_panic(&mut self) {
-        if let Err(e) = self.step() {
-            panic!(e);
-        }
+        self.grid = new;
     }
 }
 
