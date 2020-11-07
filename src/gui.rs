@@ -22,8 +22,8 @@ pub trait Colored {
 
 impl<CellType: Copy + PartialEq + Colored> Auto<CellType> {
     fn render(&self, gl: &mut GlGraphics, args: &RenderArgs) {
-        let xl = self.get_grid()[0].len();
-        let yl = self.get_grid().len();
+        let xl = self.get_grid().width();
+        let yl = self.get_grid().height();
         let w = SIZE[0] / xl as f64;
         let h = SIZE[1] / yl as f64;
         gl.draw(args.viewport(), |c, g| {
@@ -31,7 +31,7 @@ impl<CellType: Copy + PartialEq + Colored> Auto<CellType> {
             for y in 0..yl {
                 for x in 0..xl {
                     rectangle(
-                        self.get_grid()[y][x].get_color(),
+                        self.get_grid().get(x, y).get_color(),
                         [
                             SIZE[0] / xl as f64 * x as f64,
                             SIZE[1] / yl as f64 * y as f64,
@@ -43,7 +43,7 @@ impl<CellType: Copy + PartialEq + Colored> Auto<CellType> {
         })
     }
 
-    pub fn run(&mut self, title: &'static str, fps: u64) {
+    pub fn run(&mut self, title: &'static str, ups: u64) {
         let opengl = OpenGL::V3_2;
         let mut window: Window = WindowSettings::new(title, SIZE)
             .graphics_api(opengl)
@@ -52,7 +52,7 @@ impl<CellType: Copy + PartialEq + Colored> Auto<CellType> {
             .decorated(true)
             .build().unwrap();
         let mut gl = GlGraphics::new(opengl);
-        let mut events = Events::new(EventSettings::new().ups(fps));
+        let mut events = Events::new(EventSettings::new());
         while let Some(e) = events.next(&mut window) {
             if let Some(args) = e.render_args() { // render event
                 self.render(&mut gl, &args);

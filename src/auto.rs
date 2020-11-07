@@ -4,69 +4,103 @@ const NGH: [(i32, i32); 8] = [
     (-1,  1), (0,  1), (1,  1),
 ];
 
-pub struct Auto<CellType: Clone + PartialEq> {
-    grid: Box<Vec<Vec<CellType>>>,
-    rules: fn(&CellType, &Vec<CellType>) -> CellType,
+pub struct Grid<CellType: Copy + PartialEq> {
+    c: Vec<CellType>,
+    width: usize,
 }
 
-impl<CellType: Clone + PartialEq> Auto<CellType> {
-    pub fn new(grid: Vec<Vec<CellType>>, rules: fn(&CellType, &Vec<CellType>) -> CellType) -> Self {
-        if Self::validate_grid(&grid) {
-            return Auto {
-                grid: Box::new(grid),
-                rules,
-            }
-        } else {
-            panic!("Invalid grid!");
+impl<CellType: Copy + PartialEq> Grid<CellType> {
+    pub fn new_1d(c: Vec<CellType>, width: usize) -> Self {
+        Grid {
+            c,
+            width,
         }
     }
 
-    fn validate_grid(grid: &Vec<Vec<CellType>>) -> bool {
-        let width = grid[0].len();
-        for row in grid.iter() {
-            if row.len() != width {
-                return false
-            }
+    pub fn new_2d(c: Vec<Vec<CellType>>, width: usize) -> Self {
+        Grid {
+            c: Grid::engooden_grid(c),
+            width,
         }
-        true
     }
 
-    pub fn get_grid(&self) -> &Vec<Vec<CellType>> {
+    fn engooden_grid(c: Vec<Vec<CellType>>) -> Vec<CellType> {
+        let mut engoodened = Vec::with_capacity(c.len()*c[0].len());
+        for row in c.iter() {
+            for &c in row.iter() {
+                engoodened.push(c);
+            }
+        }
+        engoodened
+    }
+
+    pub fn get(&self, x: usize, y: usize) -> CellType {
+        self.c[y * self.width + x]
+    }
+
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.c.len() / self.width
+    }
+
+    pub fn len(&self) -> usize {
+        self.c.len()
+    }
+
+    pub fn push(&mut self, e: CellType) {
+        self.c.push(e);
+    }
+}
+
+pub struct Auto<CellType: Copy + PartialEq> {
+    grid: Grid<CellType>,
+    rules: fn(&CellType, [Option<CellType>; 8]) -> CellType,
+    neighbours: [Option<CellType>; 8],
+}
+
+impl<CellType: Copy + PartialEq> Auto<CellType> {
+    pub fn new(grid: Grid<CellType>, rules: fn(&CellType, [Option<CellType>; 8]) -> CellType) -> Self {
+        Auto {
+            grid,
+            rules,
+            neighbours: [None; 8],
+        }
+    }
+
+    pub fn get_grid(&self) -> &Grid<CellType> {
         &self.grid
     }
 
-    pub fn get_neighbours(grid: &Vec<Vec<CellType>>, coor: (usize, usize)) -> Vec<CellType> {
-        NGH.iter()
-            .filter_map(|c| {
-                let x = usize::overflowing_add(coor.0,c.0 as usize).0;
-                let y = usize::overflowing_add(coor.1,c.1 as usize).0;
-                return if x <= (grid.len() as i32-1) as usize && y <= (grid[0].len()-1) as usize {
-                    Some(grid[x][y].clone())
-                } else {
-                    None
-                }
-            }).collect()
+    pub fn get_neighbours(&mut self, x: usize, y: usize) -> [Option<CellType>; 8] {
+        for (i, coor) in NGH.iter().enumerate() {
+            let x = usize::overflowing_add(x, coor.0 as usize).0;
+            let y = usize::overflowing_add(y, coor.1 as usize).0;
+            self.neighbours[i] = if x <= (self.grid.width as i32-1) as usize && y <= (self.grid.height()-1) as usize {
+                Some(self.grid.get(x, y).clone())
+            } else {
+                None
+            }
+        }
+        self.neighbours
     }
 
     pub fn step(&mut self) {
         let rules = self.rules;
-        let mut new: Box<Vec<Vec<CellType>>> = Box::new(Vec::with_capacity(self.grid.len()));
+        let mut new = Grid::new_1d(Vec::with_capacity(self.grid.len()), self.grid.width);
         // take step
-        for y in 0..self.grid.len() {
-            new.push(Vec::with_capacity(self.grid[0].len()));
-            for x in 0..self.grid[0].len() {
-                new[y].push(rules(&self.grid[y][x], &Self::get_neighbours(&self.grid, (y, x))));
+        for y in 0..self.grid.height() {
+            for x in 0..self.grid.width {
+                new.push(rules(&self.grid.get(y, x), self.get_neighbours(y, x)));
             }
         }
         self.grid = new;
     }
 }
 
-impl<CellType: Copy + PartialEq + std::fmt::Display> Auto<CellType> {
-    pub fn print(&self) {
-        self.grid.iter().for_each(|row| {
-            row.iter().for_each(|cell| print!("{} ", cell));
-            println!("");
-        });
-    }
-}
+//impl<CellType: Copy + PartialEq + std::fmt::Display> Auto<CellType> {
+    //pub fn print(&self) {
+    //}
+//}
